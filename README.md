@@ -3,6 +3,8 @@
 Anthropic Claude API 기반의 범용 AI 대화 챗봇입니다.  
 Next.js 풀스택으로 구성되며 대화 기록은 MongoDB에 저장됩니다.
 
+![AI Chat 스크린샷](docs/screenshot.png)
+
 ## 주요 기능
 
 - **실시간 스트리밍** — Claude API 응답을 타이핑 효과로 즉시 표시

@@ -1,0 +1,22 @@
+# 빌드 캐시 / 의존성 (Docker 내부에서 새로 설치)
+node_modules
+.next
+
+# 버전 관리
+.git
+.gitignore
+
+# 환경 변수 (런타임에 Secret Manager에서 주입)
+.env*
+
+# 개발 도구
+.serena
+
+# 문서 (이미지 크기 최소화)
+README.md
+AGENTS.md
+TODO.md
+
+# OS 임시 파일
+.DS_Store
+Thumbs.db

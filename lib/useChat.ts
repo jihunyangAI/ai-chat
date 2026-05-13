@@ -1,5 +1,5 @@
 'use client';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useChatStore } from '@/lib/store';
 import type { ConversationDTO, MessageDTO } from '@/lib/types';
 
@@ -14,6 +14,9 @@ export function useChat() {
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
   const errorMessage = useChatStore((s) => s.errorMessage);
 
+  // 진행 중인 스트리밍 요청을 추적 — 대화 전환·삭제·재전송 시 abort
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const loadConversations = useCallback(async () => {
     const res = await fetch('/api/conversations');
     if (!res.ok) return;
@@ -22,6 +25,9 @@ export function useChat() {
   }, []);
 
   const selectConversation = useCallback(async (id: string) => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+
     const state = useChatStore.getState();
     state.setActiveConversationId(id);
     state.setMessages([]);
@@ -37,6 +43,9 @@ export function useChat() {
   }, []);
 
   const createConversation = useCallback(async (systemPrompt = '') => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+
     const res = await fetch('/api/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -52,6 +61,10 @@ export function useChat() {
   }, []);
 
   const deleteConversation = useCallback(async (id: string) => {
+    if (useChatStore.getState().activeConversationId === id) {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    }
     const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
     if (!res.ok) return;
     const state = useChatStore.getState();
@@ -76,9 +89,33 @@ export function useChat() {
     return true;
   }, []);
 
+  const updateConversationTitle = useCallback(async (id: string, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return false;
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: trimmed }),
+    });
+    if (!res.ok) return false;
+    const data: ConversationDTO = await res.json();
+    useChatStore.getState().updateConversation(id, { title: data.title });
+    return true;
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    useChatStore.getState().resetStreaming();
+  }, []);
+
   const sendMessage = useCallback(async (content: string) => {
     const { activeConversationId } = useChatStore.getState();
     if (!activeConversationId || !content.trim()) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMsg: MessageDTO = {
       _id: `temp-user-${Date.now()}`,
@@ -97,9 +134,19 @@ export function useChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: activeConversationId, message: content.trim() }),
+        signal: controller.signal,
       });
 
-      if (!res.ok || !res.body) return;
+      if (!res.ok || !res.body) {
+        const statusMessages: Record<number, string> = {
+          429: 'AI 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.',
+          404: '대화를 찾을 수 없습니다.',
+          401: 'API 키가 유효하지 않습니다.',
+        };
+        const msg = statusMessages[res.status] ?? `서버 오류가 발생했습니다. (${res.status})`;
+        useChatStore.getState().setErrorMessage(msg);
+        return;
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -113,11 +160,9 @@ export function useChat() {
         useChatStore.getState().appendStreamingContent(chunk);
       }
 
-      // 스트리밍 중 서버 에러([ERROR] 접두어) 감지
       if (fullContent.startsWith('[ERROR]')) {
         const msg = fullContent.replace(/^\[ERROR\]\s*/, '');
         useChatStore.getState().setErrorMessage(msg || 'AI 응답 중 오류가 발생했습니다.');
-        // 에러 메시지는 대화에 추가하지 않음
       } else {
         const assistantMsg: MessageDTO = {
           _id: `temp-assistant-${Date.now()}`,
@@ -127,11 +172,16 @@ export function useChat() {
           createdAt: new Date().toISOString(),
         };
         useChatStore.getState().addMessage(assistantMsg);
-        // 사이드바 제목 동기화 (첫 메시지로 업데이트됨)
         await loadConversations();
       }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      useChatStore.getState().setErrorMessage('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
       useChatStore.getState().resetStreaming();
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, [loadConversations]);
 
@@ -151,6 +201,8 @@ export function useChat() {
     createConversation,
     deleteConversation,
     sendMessage,
+    stopStreaming,
     updateSystemPrompt,
+    updateConversationTitle,
   };
 }

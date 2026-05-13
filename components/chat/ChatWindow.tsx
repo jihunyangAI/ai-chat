@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import type { MessageDTO } from '@/lib/types';
 import MessageBubble from './MessageBubble';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 interface Props {
   messages: MessageDTO[];
@@ -15,9 +16,9 @@ function TypingIndicator({ content }: { content: string }) {
     <div className="flex justify-start mb-4">
       <div className="max-w-[72%] flex flex-col">
         <span className="text-xs font-medium text-muted mb-1 ml-1">AI</span>
-        <div className="bg-card text-foreground rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed shadow-sm border border-border">
+        <div className="bg-card text-foreground rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm border border-border">
           {content ? (
-            <p className="whitespace-pre-wrap break-words">{content}</p>
+            <MarkdownRenderer content={content} />
           ) : (
             <span className="flex gap-1 items-center h-5">
               <span className="w-1.5 h-1.5 rounded-full bg-muted animate-bounce [animation-delay:-0.3s]" />

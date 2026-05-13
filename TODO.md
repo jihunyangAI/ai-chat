@@ -186,6 +186,76 @@
 
 ---
 
+---
+
+## Phase 9. 누락 기능 보완
+
+### 9.1 마크다운 렌더링 — `MessageBubble`, `TypingIndicator` (**미구현, 우선순위 높음**)
+
+현재 `MessageBubble.tsx:31`에서 AI 응답을 `whitespace-pre-wrap` plain text로만 표시한다.
+Claude는 **bold**, `inline code`, 코드 블록, 리스트, 테이블 등을 자주 반환하는데 모두 날것 그대로 노출된다.
+코드 도우미 프리셋 사용 시 가장 두드러지게 깨진다.
+
+- [x] `react-markdown`, `remark-gfm` 패키지 설치
+- [x] `components/ui/MarkdownRenderer.tsx` 컴포넌트 생성
+  - `code` 컴포넌트: inline code vs. code block 자동 구분
+  - code block: 언어 레이블 + 복사 버튼 + 다크 배경
+  - p, ul, ol, h1-h3, blockquote, a, table, hr 커스텀 스타일 적용
+- [x] `MessageBubble.tsx`: AI 응답에 `MarkdownRenderer` 적용, 사용자 메시지는 plain text 유지
+- [x] `ChatWindow.tsx`의 `TypingIndicator`에도 `MarkdownRenderer` 적용 (스트리밍 중 실시간 렌더링)
+
+### 9.2 `.env.example` 파일 생성 (**완료**)
+
+- [x] `.env.example` 파일 생성 — 값은 빈 플레이스홀더, 주석으로 설명 포함
+- [x] `.gitignore`에 `!.env.example` 예외 추가 (`.env*` 패턴에 묻히지 않도록)
+
+```env
+# Anthropic API 키 (https://console.anthropic.com)
+ANTHROPIC_API_KEY=
+
+# MongoDB 연결 문자열 (Atlas 또는 로컬)
+MONGODB_URI=
+
+# 앱 표시 이름
+NEXT_PUBLIC_APP_NAME=AI Chat
+
+# Google Cloud 설정 (배포 시 필요)
+GCP_PROJECT_ID=
+GCP_REGION=asia-northeast3
+```
+
+### 9.3 `sendMessage` HTTP 에러 시 사용자 피드백 누락 (**완료**)
+
+- [x] `!res.ok` 분기에서 HTTP 상태 코드별 메시지를 `setErrorMessage`로 표시 (429, 404, 401, 그 외)
+- [x] `AbortError` catch 시 무시 처리 (사용자 중단은 에러가 아님)
+- [x] 네트워크 오류 catch 시 에러 메시지 표시
+
+### 9.4 스트리밍 중단 — AbortController + 중단 버튼 (**완료**)
+
+- [x] `useChat.ts`에 `abortControllerRef` 도입 — `sendMessage` 재호출 시 이전 스트림 자동 abort
+- [x] `selectConversation`, `createConversation`, `deleteConversation` 호출 시에도 진행 중 스트림 abort
+- [x] `stopStreaming` 함수 추가 — abort + `resetStreaming()` 호출
+- [x] `InputBar.tsx`에 `onStop` prop 추가 — 스트리밍 중 전송 버튼이 빨간 정지 버튼(■)으로 전환
+
+### 9.5 대화 삭제 확인 UI (**완료**)
+
+- [x] 삭제 버튼 클릭 시 `confirmingDelete` 상태로 전환 — "삭제 / 취소" 인라인 버튼 표시
+- [x] 삭제 확인 중에는 편집 버튼 숨김, 외부 클릭 없이 취소 가능
+
+### 9.6 AI 응답 복사 버튼 (**완료**)
+
+- [x] `MessageBubble.tsx`에서 AI 메시지 하단에 복사 버튼 추가 (hover 시 표시)
+- [x] `navigator.clipboard.writeText` 호출, 복사 후 체크(✓) 아이콘 + "복사됨" 2초간 표시
+
+### 9.7 대화 제목 인라인 편집 (**완료**)
+
+- [x] `ConversationItem`에 연필 아이콘 버튼 추가 (hover 시 표시)
+- [x] 클릭 시 제목 → input 전환, Enter 저장 / Escape 취소 / blur 저장
+- [x] `updateConversationTitle` 훅 함수 → `PATCH /api/conversations/[id]` 호출 + Zustand store 즉시 반영
+- [x] 편집 중에는 삭제 확인 UI 숨김, 대화 선택 클릭 비활성화
+
+---
+
 ## 진행 현황 요약
 
 | Phase | 내용 | 상태 |
@@ -198,3 +268,4 @@
 | 6 | 부가 기능 UI | ✅ 완료 |
 | 7 | Docker · Cloud Run 배포 | ✅ 완료 |
 | 8 | 마무리 및 검증 | ✅ 완료 |
+| 9 | 누락 기능 보완 | ✅ 완료 (7/7) |

@@ -23,7 +23,9 @@ export default function ChatPage() {
     createConversation,
     deleteConversation,
     sendMessage,
+    stopStreaming,
     updateSystemPrompt,
+    updateConversationTitle,
     errorMessage,
     clearError,
   } = useChat();
@@ -61,6 +63,7 @@ export default function ChatPage() {
           onSelect={(id) => { selectConversation(id); setSidebarOpen(false); }}
           onCreate={() => createConversation()}
           onDelete={deleteConversation}
+          onRename={updateConversationTitle}
         />
       </div>
 
@@ -136,7 +139,7 @@ export default function ChatPage() {
               streamingContent={streamingContent}
               isLoading={isLoadingMessages}
             />
-            <InputBar onSend={sendMessage} disabled={isStreaming} />
+            <InputBar onSend={sendMessage} onStop={stopStreaming} disabled={isStreaming} />
           </>
         )}
       </div>
